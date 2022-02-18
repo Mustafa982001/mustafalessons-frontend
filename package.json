@@ -1,5 +1,5 @@
 {
-  "homepage": "https://mustafa982001.github.io/index.html",
+  "homepage": "https://mustafa982001.github.io/mustafalessons-frontend/index.html",
   "scripts": {
     "deploy": "gh-pages -d build"
   },
