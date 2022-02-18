@@ -39,12 +39,12 @@
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                         <li class="nav-item">
-                            <a class="nav-link active" aria-current="page">Lessons</a>
+                            <a v-on:click='showProduct = true' class="nav-link active" aria-current="page">Lessons</a>
                         </li>
                         <li class="nav-item">
-                            <a v-on:click='showCheckout' v-show='showCart' class="nav-link"><span><i
-                                        class="fas fa-shopping-basket"></i></span> Checkout
-                                {{cartItemCount}}</a>
+                            <a v-on:click='showCheckout' v-show='orderItems && orderItems.length > 0 || !!cart'
+                                class="nav-link"><span><i class="fas fa-shopping-basket"></i></span> Checkout
+                                {{cartItemCount  || orderItems.length}}</a>
                         </li>
 
                     </ul>
@@ -86,7 +86,7 @@
                     <div class="card mb-2">
                         <img v-bind:src="lesson.Image" class="card-img-top" alt="..." height="200px">
                         <div class="card-body">
-                            
+
                             <i :class="`fa ${lesson.Icon}`"></i>
                             <h3>Subject: {{lesson.Subject}}</h3>
                             <h3>Location: {{lesson.Location}}</h3>
@@ -112,12 +112,13 @@
                     <h3>Lessons in basket</h3>
 
                     <div class="row">
-                        <div v-for="(lesson, index) in cart" :key="index" class="col-12 col-sm-4 col-md-3">
+                        <div v-for="(lesson, index) in orderItems" :key="index" class="col-12 col-sm-4 col-md-3">
                             <div class="card mb-2">
                                 <img v-bind:src="lesson.Image" class="card-img-top" alt="..." height="200px">
                                 <div class="card-body">
                                     <h3>{{ lesson.Subject }}</h3>
                                     <h3>{{ lesson.Location }}</h3>
+                                    <h3>Spaces {{ lesson.Spaces }}</h3>
                                     <h3>£{{ lesson.Price }}</h3>
                                     <button class="btn btn-danger" @click="removeFromCart(lesson)">
                                         <i class="fa fa-trash"></i>
@@ -166,12 +167,14 @@
                 search: '',
                 showProduct: true,
                 lessons: [],
+                orderItems: [],
                 cart: [],
                 order: {
                     firstName: '',
                     phoneNumber: ''
                 },
-                baseUrl: "https://mustafa-lessons.herokuapp.com/"
+                // baseUrl: "https://mustafa-lessons.herokuapp.com/"
+                baseUrl: "http://localhost:8080/"
             },
             watch: {
                 // fetch all items if search is empty
@@ -218,13 +221,51 @@
                             console.log('err', err);
                         })
                 },
-                addcart(lesson) {
+
+                getOrders() {
+                    const orderId = localStorage.getItem("orderId")
+                    fetch(`${this.baseUrl}orders/${localStorage.getItem("orderId")}`, { method: 'GET' })
+                        .then(res => res.json())
+                        .then(orderItems => {
+                            this.orderItems = orderItems
+                        })
+                        .catch(err => {
+                            console.log('err', err);
+                        })
+                },
+                async addcart(lesson) {
+                    // if no orderId, get orderId
+                    var orderId = localStorage.getItem("orderId")
+                    console.log("orderId", orderId);
                     this.cart.push(lesson.id)
                     console.log(this.cart)
                     lesson.Spaces -= 1
+                    try {
+                        if (!orderId) {
+
+                            orderId = await fetch(`${this.baseUrl}orders`, { method: 'POST' })
+                            orderId = await orderId.json()
+                            orderId = orderId.insertedId
+                            console.log("orderId", orderId);
+                            await localStorage.setItem("orderId", orderId)
+
+                        }
+
+                        var newOrderItem = await fetch(`${this.baseUrl}orders/${orderId}/${lesson._id}`, {
+                            method: 'POST',
+                            
+                        })
+
+                        await this.getOrders()
+
+                    } catch (error) {
+                        console.log("error", error);
+                    }
                 },
+
                 showCheckout() {
                     this.showProduct = this.showProduct ? false : true
+                    this.getOrders(localStorage.getItem())
                 },
                 canAddToCart(lesson) {
                     return lesson.Spaces > 0
@@ -256,10 +297,21 @@
                 },
                 placeOrder() {
                     alert('Order submitted!!!')
+                    localStorage.removeItem("orderId")
+                    this.getLessons()
+                    this.getOrders()
                 },
                 removeFromCart(lesson) {
-                    this.cart.pop(this.lessons[lesson])
-                    this.lessons[lesson].Spaces += 1
+                    fetch(`${this.baseUrl}orders/${lesson._id}`, { method: 'DELETE' })
+                        .then(res => res.json())
+                        .then(res => {
+                            console.log("res", res);
+                            this.getOrders()
+                            this.getLessons()
+                        })
+                        .catch(err => {
+                            console.log("err", err)
+                        })
                 },
 
                 // search on key input 
@@ -285,6 +337,7 @@
 
             mounted() {
                 this.getLessons()
+                this.getOrders()
             }
         })
 
